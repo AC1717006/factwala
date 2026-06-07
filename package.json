@@ -1,0 +1,31 @@
+{
+  "name": "instagram-news-bot",
+  "version": "2.0.0",
+  "description": "FactWala — Automated Instagram Hindi News Bot (GNews + Groq AI + Canvas + Instagram Graph API)",
+  "main": "index.js",
+  "scripts": {
+    "start":    "node index.js",
+    "test":     "node index.js --test",
+    "validate": "node scripts/validate.js",
+    "testpost": "node scripts/testPost.js"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.57",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "form-data": "^4.0.0",
+    "groq-sdk": "^0.9.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "instagram",
+    "automation",
+    "hindi-news",
+    "groq-ai",
+    "gnews",
+    "factwala"
+  ],
+  "license": "MIT"
+}

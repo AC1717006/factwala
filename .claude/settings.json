@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('./src/utils/logger'\\)\")",
+      "Bash(node -e \"require\\('canvas'\\); console.log\\('canvas OK'\\)\")",
+      "Bash(npm config *)",
+      "Bash(node -e \"const { createCanvas } = require\\('@napi-rs/canvas'\\); const c = createCanvas\\(100,100\\); const ctx = c.getContext\\('2d'\\); ctx.fillStyle='#FF0000'; ctx.fillRect\\(0,0,100,100\\); const buf = c.toBuffer\\('image/jpeg',90\\); console.log\\('canvas OK, buffer size:', buf.length\\)\")",
+      "Bash(npm uninstall *)",
+      "Bash(node -e \"require\\('axios'\\); require\\('@google/generative-ai'\\); require\\('dotenv'\\); require\\('form-data'\\); require\\('@napi-rs/canvas'\\); console.log\\('All dependencies OK'\\)\")",
+      "Bash(node index.js --test)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"require\\('./src/upload/uploadImgBB'\\); require\\('./src/instagram/createMedia'\\); require\\('./src/instagram/publishMedia'\\); require\\('./src/news/fetchNews'\\); require\\('./src/ai/rewriteNews'\\); require\\('./src/image/generateImage'\\); require\\('./src/utils/retry'\\); console.log\\('All modules load OK'\\)\")",
+      "Bash(node scripts/validate.js)",
+      "Bash(node -e \"const c = require\\('@napi-rs/canvas'\\); console.log\\(Object.keys\\(c\\)\\);\")",
+      "Bash(node -e \"const { GlobalFonts } = require\\('@napi-rs/canvas'\\); console.log\\(Object.getOwnPropertyNames\\(GlobalFonts\\)\\);\")"
+    ]
+  }
+}

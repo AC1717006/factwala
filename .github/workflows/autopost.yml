@@ -1,0 +1,94 @@
+name: FactWala — Instagram Auto Post
+
+on:
+  schedule:
+    - cron: '30 2 * * *'    # 08:00 AM IST (UTC+5:30 = UTC 02:30)
+    - cron: '30 14 * * *'   # 08:00 PM IST (UTC+5:30 = UTC 14:30)
+
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run mode'
+        required: false
+        default: 'production'
+        type: choice
+        options: ['production', 'test']
+
+permissions:
+  contents: write
+
+jobs:
+  post-news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Create runtime directories
+        run: mkdir -p output logs
+
+      # ── Test mode ──────────────────────────────────────────────────────
+      - name: Run bot (TEST mode)
+        if: ${{ github.event.inputs.mode == 'test' }}
+        env:
+          INSTAGRAM_BUSINESS_ID: ${{ secrets.INSTAGRAM_BUSINESS_ID }}
+          FACEBOOK_PAGE_ID:       ${{ secrets.FACEBOOK_PAGE_ID }}
+          META_APP_ID:            ${{ secrets.META_APP_ID }}
+          META_APP_SECRET:        ${{ secrets.META_APP_SECRET }}
+          META_ACCESS_TOKEN:      ${{ secrets.META_ACCESS_TOKEN }}
+          News_API:               ${{ secrets.NEWS_API }}
+          GROQ_API_KEY:           ${{ secrets.GROQ_API_KEY }}
+          IMGBB_API_KEY:          ${{ secrets.IMGBB_API_KEY }}
+        run: node index.js --test
+
+      # ── Production mode ────────────────────────────────────────────────
+      - name: Run bot (PRODUCTION mode)
+        if: ${{ github.event.inputs.mode != 'test' }}
+        env:
+          INSTAGRAM_BUSINESS_ID: ${{ secrets.INSTAGRAM_BUSINESS_ID }}
+          FACEBOOK_PAGE_ID:       ${{ secrets.FACEBOOK_PAGE_ID }}
+          META_APP_ID:            ${{ secrets.META_APP_ID }}
+          META_APP_SECRET:        ${{ secrets.META_APP_SECRET }}
+          META_ACCESS_TOKEN:      ${{ secrets.META_ACCESS_TOKEN }}
+          News_API:               ${{ secrets.NEWS_API }}
+          GROQ_API_KEY:           ${{ secrets.GROQ_API_KEY }}
+          IMGBB_API_KEY:          ${{ secrets.IMGBB_API_KEY }}
+        run: node index.js
+
+      # ── Artifacts ──────────────────────────────────────────────────────
+      - name: Upload generated image
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: factwala-image-${{ github.run_number }}
+          path: output/
+          retention-days: 7
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: factwala-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 30
+
+      # ── Persist DB ─────────────────────────────────────────────────────
+      - name: Commit posted news database
+        if: success()
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name  "github-actions[bot]"
+          git add src/storage/postedNews.json
+          git diff --staged --quiet || git commit -m "chore(bot): update posted news db [skip ci]"
+          git push
