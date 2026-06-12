@@ -1,91 +1,167 @@
 require('dotenv').config();
-const Groq   = require('groq-sdk');
+const Anthropic = require('@anthropic-ai/sdk');
 const logger = require('../utils/logger');
 const { retry } = require('../utils/retry');
 
-const MODEL = 'llama-3.3-70b-versatile';
+const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
 
-const SYSTEM_PROMPT = `Tu FactWala ka Hindi news writer hai. Teri job hai raw news article ko Instagram ke liye rewrite karna.
+const SYSTEM_PROMPT = `You are FactWala Today News — a viral Hindi news Instagram content creator.
 
-OUTPUT FORMAT (strict JSON only, no extra text):
+Your job is to convert a raw news article into a complete Instagram carousel post.
+
+OUTPUT FORMAT (return ONLY valid JSON, no markdown, no explanation):
 {
-  "headline": "< 10 words mein catchy Hindi headline >",
-  "summary": "< 3-4 lines mein simple Hindi mein news summary, aam aadmi samjhe >",
-  "caption": "< Instagram caption — headline + 2 line summary + call to action >",
-  "hashtags": "< 15-20 relevant Hindi + English hashtags >"
+  "headline": "...",
+  "slides": [
+    {
+      "slide_number": 1,
+      "background_color": "#1a1a2e",
+      "accent_color": "#e94560",
+      "title": "...",
+      "body": ["line1", "line2", "line3"]
+    },
+    {
+      "slide_number": 2,
+      "background_color": "#16213e",
+      "accent_color": "#f5a623",
+      "title": "...",
+      "body": ["line1", "line2", "line3", "line4"]
+    },
+    {
+      "slide_number": 3,
+      "background_color": "#0f3460",
+      "accent_color": "#e94560",
+      "title": "...",
+      "body": ["line1", "line2"]
+    }
+  ],
+  "caption": "...",
+  "hashtags": "..."
 }
 
-RULES:
-1. Sirf verified facts likho — koi speculation nahi
-2. Sensational ya misleading headline mat banao (Meta policy)
-3. Hindi mein likho — Devanagari script preferred
-4. Caption 2200 characters se kam ho
-5. Hashtags mein #FactWala #SachKiKhabar hamesha include karo
-6. Koi adult, violent, ya hateful content nahi
-7. Agar news unclear ho toh summary mein "Zyada jaankari ka intezaar hai" likho`;
+SLIDE DESIGN RULES:
+- Exactly 3 slides always
+- Each slide is 1080x1080 pixels
+- Dark background, bold text, news channel style
+- NO borders, NO boxes — clean full-bleed design
+
+SLIDE 1 — BREAKING (Hook):
+- title: "🚨 बड़ी खबर" or "⚡ ब्रेकिंग" or "🔥 चौंकाने वाला"
+- body: 3 short lines — What happened, Who, Where
+- Tone: Shocking, urgent, cinematic
+- Max 8 words per line
+
+SLIDE 2 — FULL STORY (Details):
+- title: "📋 पूरी बात जानिए"
+- body: 4 lines — Key facts, numbers, names, timeline
+- Use bullet style: start each line with •
+- Max 10 words per line
+
+SLIDE 3 — IMPACT + CTA (Engagement):
+- title: "💬 आपकी राय?"
+- body: 2 lines — What happens next + one strong opinion question
+- End last line with: "👇 Comment करें और Share करें"
+- Max 12 words per line
+
+HEADLINE RULES:
+- Max 12 words
+- Shocking, emotional, curiosity-driven
+- Pure Hindi Devanagari script
+- Add ONE emoji at start: 🚨 crime/police, 💔 love/betrayal, ⚡ politics, 🔥 controversy, 😱 shocking
+
+CAPTION RULES:
+- 4-5 lines
+- Conversational Hindi — like talking to a friend
+- Line 1: Most shocking fact
+- Line 2-3: Short story
+- Line 4: Strong opinion question
+- Line 5: "👇 नीचे Comment करें | @FactWalaNews को Follow करें 🔔"
+
+HASHTAG RULES:
+- Exactly 20 hashtags
+- Always include: #FactWalaNews #FactWalaTodayNews #HindiNews #AajKiKhabar #BreakingNews #TrendingNews #IndiaNews
+- Add 13 topic-specific tags based on news content
+- Single string, space separated
+
+TONE & STYLE:
+- Cinematic, dramatic, emotional — like a Bollywood news anchor
+- Crime news → intense, dark tone
+- Political news → sharp, bold tone
+- Social news → emotional, relatable tone
+- Never add fake facts — only presentation is dramatic
+- Simple Hindi — class 7 reading level
+- Short sentences. Punch. Impact.
+
+STRICTLY FORBIDDEN:
+- No English words except proper nouns
+- No fabricated facts
+- No markdown in output
+- No text outside JSON
+- No more or less than 3 slides`;
 
 function buildUserPrompt(article) {
-  return `Neeche diye gaye news article ko Instagram ke liye rewrite karo:
-
-Title: ${article.title}
+  const articleText = `Title: ${article.title}
 Description: ${article.description || ''}
 Content: ${(article.content || '').substring(0, 600)}
-Source: ${article.source?.name || 'Unknown'}
+Source: ${article.source?.name || 'Unknown'}`;
 
-Important: "caption" field mein headline + summary + hashtags sab kuch include karo
-(yahi field directly Instagram post mein jaata hai).
-Sirf valid JSON return karo, koi extra text nahi.`;
+  return `INPUT ARTICLE:\n${articleText}`;
 }
 
 async function rewriteNews(article) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error('GROQ_API_KEY environment variable is not set');
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) throw new Error('CLAUDE_API_KEY environment variable is not set');
 
-  const groq = new Groq({ apiKey });
+  const client = new Anthropic({ apiKey });
 
-  logger.info(`Sending article to Groq AI (${MODEL})...`);
+  logger.info(`Sending article to Claude (${MODEL})...`);
 
-  const completion = await retry(
-    () => groq.chat.completions.create({
-      model:           MODEL,
+  const response = await retry(
+    () => client.messages.create({
+      model:      MODEL,
+      max_tokens: 1500,
+      system:     SYSTEM_PROMPT,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user',   content: buildUserPrompt(article) },
+        { role: 'user', content: buildUserPrompt(article) },
       ],
-      temperature:     0.65,
-      max_tokens:      1024,
-      response_format: { type: 'json_object' },
     }),
-    { attempts: 3, delayMs: 2000, label: 'Groq AI rewrite' }
+    { attempts: 3, delayMs: 2000, label: 'Claude AI rewrite' }
   );
 
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) throw new Error('Groq returned empty response');
+  const raw = response.content?.[0]?.text?.trim();
+  if (!raw) throw new Error('Claude returned empty response');
 
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
-    // Groq sometimes wraps JSON in ```json ... ``` despite json_object mode
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error(`Could not extract JSON from Groq response: ${raw.substring(0, 200)}`);
+    if (!match) throw new Error(`Could not extract JSON from Claude response: ${raw.substring(0, 200)}`);
     parsed = JSON.parse(match[0]);
   }
 
-  const required = ['headline', 'summary', 'caption', 'hashtags'];
+  const required = ['headline', 'slides', 'caption', 'hashtags'];
   for (const field of required) {
-    if (!parsed[field]) throw new Error(`Groq response missing field: "${field}"`);
+    if (!parsed[field]) throw new Error(`Claude response missing field: "${field}"`);
   }
 
-  // hashtags may be a string (new format) or array (legacy) — normalise to string
+  if (!Array.isArray(parsed.slides) || parsed.slides.length !== 3) {
+    throw new Error(`Claude response must contain exactly 3 slides, got ${parsed.slides?.length}`);
+  }
+
+  for (const slide of parsed.slides) {
+    if (!Array.isArray(slide.body)) throw new Error(`Slide ${slide.slide_number} "body" must be an array of lines`);
+  }
+
   if (Array.isArray(parsed.hashtags)) {
     parsed.hashtags = parsed.hashtags.join(' ');
   }
 
-  logger.success('Article rewritten by Groq AI', {
-    model:    MODEL,
-    headline: parsed.headline,
-    tokens:   completion.usage?.total_tokens,
+  logger.success('Article rewritten by Claude', {
+    model:      MODEL,
+    headline:   parsed.headline,
+    inputTokens:  response.usage?.input_tokens,
+    outputTokens: response.usage?.output_tokens,
   });
 
   return parsed;

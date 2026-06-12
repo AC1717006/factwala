@@ -8,10 +8,12 @@ if (process.env.DISABLE_SSL_VERIFY === 'true') {
 
 const { fetchLatestNews, saveToDB }   = require('./src/news/fetchNews');
 const { rewriteNews }                 = require('./src/ai/rewriteNews');
-const { generateNewsImage }           = require('./src/image/generateImage');
+const { generateCarouselImages }      = require('./src/image/generateCarousel');
 const { uploadToImgBB }               = require('./src/upload/uploadImgBB');
-const { createMediaContainer }        = require('./src/instagram/createMedia');
+const { createCarouselItem,
+        createCarouselContainer }      = require('./src/instagram/createMedia');
 const { publishMedia }                = require('./src/instagram/publishMedia');
+const { sleep }                       = require('./src/utils/retry');
 const logger                          = require('./src/utils/logger');
 
 const TEST_MODE = process.argv.includes('--test');
@@ -30,11 +32,11 @@ async function main() {
     process.exit(0);
   }
 
-  // ── 2. Rewrite with Groq AI ──────────────────────────────────────────────
+  // ── 2. Rewrite with Claude AI (3-slide carousel) ─────────────────────────
   const rewritten = await rewriteNews(article);
 
-  // ── 3. Generate FactWala branded image ───────────────────────────────────
-  const imagePath = await generateNewsImage(rewritten.headline, rewritten.summary);
+  // ── 3. Generate FactWala branded carousel slides (1080x1080 x3) ─────────
+  const imagePaths = await generateCarouselImages(rewritten);
 
   // ── 4. Preview ───────────────────────────────────────────────────────────
   console.log(`\n${SEP}`);
@@ -42,42 +44,52 @@ async function main() {
   console.log(SEP);
   console.log(rewritten.caption);
   console.log(SEP);
-  console.log(`Image: ${imagePath}`);
+  console.log(`Slides: ${imagePaths.join(', ')}`);
   console.log(`${SEP}\n`);
 
-  // ── 5. Upload image to ImgBB (Instagram needs a public URL) ─────────────
-  const imageUrl = await uploadToImgBB(imagePath);
+  // ── 5. Upload slides to ImgBB (Instagram needs public URLs) ──────────────
+  const imageUrls = [];
+  for (const imagePath of imagePaths) {
+    imageUrls.push(await uploadToImgBB(imagePath));
+  }
 
   // ── TEST MODE: stop here (before Instagram) ──────────────────────────────
   if (TEST_MODE) {
     logger.success('TEST PASSED — all steps up to ImgBB upload succeeded.');
-    console.log(`\nPublic image URL: ${imageUrl}`);
+    console.log(`\nPublic image URLs:\n${imageUrls.join('\n')}`);
     logger.info('Run  npm start  to enable full Instagram publishing.');
     process.exit(0);
   }
 
-  // ── 6. Create Instagram media container ─────────────────────────────────
-  const containerId = await createMediaContainer(imageUrl, rewritten.caption);
+  // ── 6. Create carousel item containers ───────────────────────────────────
+  const childContainerIds = [];
+  for (const imageUrl of imageUrls) {
+    childContainerIds.push(await createCarouselItem(imageUrl));
+  }
 
-  // ── 7. Publish to Instagram ──────────────────────────────────────────────
+  // ── 7. Create carousel parent container ──────────────────────────────────
+  await sleep(5000); // give Instagram time to process the carousel items
+  const containerId = await createCarouselContainer(childContainerIds, rewritten.caption);
+
+  // ── 8. Publish to Instagram ──────────────────────────────────────────────
   const postId = await publishMedia(containerId);
 
-  // ── 8. Save to local database ────────────────────────────────────────────
+  // ── 9. Save to local database ────────────────────────────────────────────
   saveToDB({
     title:             article.title,
     source:            article.source?.name || 'GNews',
     article_url:       article.url,
     published_post_id: postId,
-    image_url:         imageUrl,
+    image_urls:        imageUrls,
     timestamp:         new Date().toISOString(),
     status:            'published',
   });
 
   logger.success(SEP);
-  logger.success('Post published to Instagram!', {
+  logger.success('Carousel post published to Instagram!', {
     postId,
-    headline:  rewritten.headline,
-    imageUrl,
+    headline: rewritten.headline,
+    slides:   imageUrls.length,
   });
   logger.success(SEP);
 }

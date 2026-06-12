@@ -10,6 +10,7 @@
     "testpost": "node scripts/testPost.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
     "@napi-rs/canvas": "^0.1.57",
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",

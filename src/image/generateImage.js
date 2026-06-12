@@ -6,21 +6,9 @@ const https = require('https');
 const http  = require('http');
 const logger = require('../utils/logger');
 
-// ── Dimensions ─────────────────────────────────────────────────────────────────
+// ── Dimensions (Instagram square carousel) ─────────────────────────────────────
 const W = 1080;
-const H = 1920;
-
-// Section layout — heights must sum to H (1920)
-// Original spec: 120+300+380+280+280+180+120 = 1660 → extra 260 distributed to s3/s4/s5
-const L = {
-  header:    { y: 0,    h: 120 },  // 120
-  headline:  { y: 120,  h: 300 },  // 300
-  matter:    { y: 420,  h: 480 },  // 380 + 100
-  factcheck: { y: 900,  h: 360 },  // 280 + 80
-  reaction:  { y: 1260, h: 360 },  // 280 + 80
-  caption:   { y: 1620, h: 180 },  // 180
-  footer:    { y: 1800, h: 120 },  // 120  → total 1920
-};
+const H = 1080;
 
 // ── Font ───────────────────────────────────────────────────────────────────────
 const FONT_DIR    = path.join(__dirname, '../../fonts');
@@ -29,30 +17,32 @@ const FONT_URL    = 'https://github.com/google/fonts/raw/main/ofl/notosansdevana
 const FONT_FAMILY = 'HindiFont';
 const OUTPUT_DIR  = path.join(__dirname, '../../output');
 
-// ── Palette ───────────────────────────────────────────────────────────────────
+// ── Palette ──────────────────────────────────────────────────────────────────
 const C = {
-  white:   '#FFFFFF',
-  black:   '#000000',
-  red:     '#CC0000',
-  navy:    '#111827',
-  green:   '#1a7a3c',
-  amber:   '#E67E00',
-  amberBg: '#FFF8E7',
-  gold:    '#FFD700',
-  bodyBg:  '#F8F8F8',
-  dark:    '#222222',
-  mid:     '#333333',
-  gray:    '#888888',
+  white:      '#FFFFFF',
+  black:      '#000000',
+  red:        '#CC0000',
+  darkRed:    '#990000',
+  yellow:     '#FFD700',
+  navy:       '#1a1a2e',
+  lightGray:  '#F0F0F0',
+  blueGray:   '#e8f4f8',
+  blue:       '#1565C0',
+  green:      '#2d6a2d',
+  lightGreen: '#f0f7f0',
+  orange:     '#e6a817',
+  lightYellow:'#fdf8e8',
+  warnBg:     '#fff3cd',
+  warnBorder: '#DDAA00',
+  gray:       '#888888',
+  dark:       '#222222',
 };
 
 let fontReady = false;
 
-// ── Font helpers ───────────────────────────────────────────────────────────────
-const f  = (sz, wt = 'normal') => `${wt} ${sz}px '${FONT_FAMILY}', sans-serif`;
-const fi = (sz)                 => `italic normal ${sz}px '${FONT_FAMILY}', sans-serif`;
+const f = (sz, wt = 'normal') => `${wt} ${sz}px '${FONT_FAMILY}', sans-serif`;
 
 // ── downloadFile ───────────────────────────────────────────────────────────────
-// Follows HTTP redirects; skips download if file already exists.
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
     if (fs.existsSync(dest)) { resolve(dest); return; }
@@ -96,9 +86,24 @@ async function ensureFont() {
   }
 }
 
+// ── roundRect ─────────────────────────────────────────────────────────────────
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 // ── wrapText ──────────────────────────────────────────────────────────────────
 /**
- * Draw word-wrapped text. ctx.font / fillStyle / textAlign / textBaseline must
+ * Draws word-wrapped text. ctx.font / fillStyle / textAlign / textBaseline must
  * be set by the caller before invoking.
  * @returns {number} Y position immediately after the last drawn line.
  */
@@ -125,400 +130,415 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = Infinity) {
   return curY;
 }
 
-// ── roundRect ─────────────────────────────────────────────────────────────────
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
+// ── drawBrandingBar ───────────────────────────────────────────────────────────
+function drawBrandingBar(ctx) {
+  const barH = 80;
+  const barY = H - barH;
+
+  ctx.fillStyle = C.darkRed;
+  ctx.fillRect(0, barY, W, barH);
+
+  ctx.fillStyle    = C.white;
+  ctx.font         = f(30, 'bold');
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Fact Wala Today News', W / 2, barY + barH / 2);
+
+  return barY;
 }
 
-// ── drawSectionHeader ─────────────────────────────────────────────────────────
-// Fills a full-width band and draws left-aligned bold white text at x=50.
-// Caller adds any icon/circle at x=22-28 before or after.
-function drawSectionHeader(ctx, y, height, bgColor, text, textColor) {
-  ctx.fillStyle = bgColor;
-  ctx.fillRect(0, y, W, height);
-  ctx.fillStyle    = textColor;
-  ctx.font         = f(28, 'bold');
-  ctx.textAlign    = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, 52, y + height / 2);
-}
-
-// ── splitSentences ────────────────────────────────────────────────────────────
-function splitSentences(text) {
-  const parts = [];
-  for (const chunk of String(text).split('।')) {
-    for (const sub of chunk.split(/\.\s+/)) {
-      const s = sub.trim().replace(/[।.]$/, '').trim();
-      if (s.length > 5) parts.push(s);
-    }
-  }
-  return parts;
-}
-
-// ── generateImage ─────────────────────────────────────────────────────────────
-async function generateImage(newsData, outputPath) {
-  const {
-    headline = '',
-    summary  = '',
-    hashtags = '',
-    caption  = '',
-  } = newsData;
-
-  await ensureFont();
-
-  const canvas    = createCanvas(W, H);
-  const ctx       = canvas.getContext('2d');
-  const sentences = splitSentences(summary);
-
-  // ── [1] TOP HEADER  y=0, h=120 ──────────────────────────────────────────────
-  ctx.fillStyle = C.navy;
-  ctx.fillRect(0, L.header.y, W, L.header.h);
-
-  const hMidY = L.header.y + L.header.h / 2;
-
-  // Left badge: "बड़ी खबर" — red pill, gold text
-  ctx.font = f(22, 'bold');
-  const lbW = ctx.measureText('बड़ी खबर').width + 30;
-  const lbH = 46;
-  const lbY = hMidY - lbH / 2;
-
-  ctx.fillStyle = C.red;
-  roundRect(ctx, 20, lbY, lbW, lbH, lbH / 2);
-  ctx.fill();
-
-  ctx.fillStyle    = C.gold;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('बड़ी खबर', 20 + lbW / 2, hMidY);
-
-  // Right badge: "BREAKING" — red, white text
-  ctx.font = f(20, 'bold');
-  const rbW = ctx.measureText('BREAKING').width + 26;
-  const rbH = 46;
-  const rbX = W - rbW - 20;
-  const rbY = hMidY - rbH / 2;
-
-  ctx.fillStyle = C.red;
-  roundRect(ctx, rbX, rbY, rbW, rbH, 8);
-  ctx.fill();
-
-  ctx.fillStyle    = C.white;
-  ctx.font         = f(20, 'bold');
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('BREAKING', rbX + rbW / 2, hMidY);
-
-  // Center: FW red circle + "FactWala" — horizontally centred as a group
-  ctx.font = f(34, 'bold');
-  const fwTxtW = ctx.measureText('FactWala').width;
-  const circD  = 48;
-  const fwGap  = 12;
-  const grpW   = circD + fwGap + fwTxtW;
-  const grpX   = W / 2 - grpW / 2;
-  const fwCX   = grpX + circD / 2;
-
-  ctx.fillStyle = C.red;
-  ctx.beginPath();
-  ctx.arc(fwCX, hMidY, circD / 2, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle    = C.white;
-  ctx.font         = f(18, 'bold');
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('FW', fwCX, hMidY);
-
-  ctx.fillStyle    = C.white;
-  ctx.font         = f(34, 'bold');
-  ctx.textAlign    = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('FactWala', grpX + circD + fwGap, hMidY);
-
-  // ── [2] MAIN HEADLINE  y=120, h=300 ─────────────────────────────────────────
-  ctx.fillStyle = C.red;
-  ctx.fillRect(0, L.headline.y, W, L.headline.h);
-
-  // Large bold headline — centered, max 3 lines
-  ctx.fillStyle    = C.white;
-  ctx.font         = f(52, 'bold');
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'top';
-
-  let hlY = L.headline.y + 22;
-  hlY = wrapText(ctx, headline, W / 2, hlY, W - 80, 62, 3);
-
-  // Thin divider
-  hlY += 14;
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.fillRect(80, hlY, W - 160, 2);
-  hlY += 16;
-
-  // Sub-headline: first summary sentence, italic, smaller
-  if (sentences[0]) {
-    ctx.fillStyle    = 'rgba(255,255,255,0.88)';
-    ctx.font         = fi(26);
-    ctx.textAlign    = 'center';
-    ctx.textBaseline = 'top';
-    wrapText(ctx, sentences[0], W / 2, hlY, W - 100, 36, 2);
-  }
-
-  // ── [3] क्या है मामला?  y=420, h=480 ─────────────────────────────────────────
-  // Header bar (60px)
-  drawSectionHeader(ctx, L.matter.y, 60, C.navy, 'क्या है मामला?', C.white);
-
-  // Red circle bullet in header
-  ctx.fillStyle = C.red;
-  ctx.beginPath();
-  ctx.arc(28, L.matter.y + 30, 9, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Content area background
-  ctx.fillStyle = C.bodyBg;
-  ctx.fillRect(0, L.matter.y + 60, W, L.matter.h - 60);
-
-  // Up to 4 bullet points from first 4 sentences
-  const matterItems  = sentences.slice(0, 4);
-  const matterBottom = L.matter.y + L.matter.h - 20;
-  let   bulletY      = L.matter.y + 60 + 28;
-
-  for (const sentence of matterItems) {
-    if (bulletY > matterBottom - 44) break;
-
-    // Red filled circle
-    ctx.fillStyle = C.red;
-    ctx.beginPath();
-    ctx.arc(44, bulletY + 14, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Sentence text
-    ctx.fillStyle    = C.dark;
-    ctx.font         = f(26, 'normal');
-    ctx.textAlign    = 'left';
-    ctx.textBaseline = 'top';
-    const linesLeft = Math.max(1, Math.floor((matterBottom - bulletY) / 44));
-    bulletY = wrapText(ctx, sentence, 68, bulletY, W - 108, 44, Math.min(2, linesLeft));
-    bulletY += 16;
-  }
-
-  // ── [4] फैक्ट चेक  y=900, h=360 ──────────────────────────────────────────────
-  // Header bar (55px)
-  drawSectionHeader(ctx, L.factcheck.y, 55, C.green, 'फैक्ट चेक', C.white);
-
-  // Diamond accent in header (drawn as rotated square)
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.save();
-  ctx.translate(28, L.factcheck.y + 27);
-  ctx.rotate(Math.PI / 4);
-  ctx.fillRect(-8, -8, 16, 16);
-  ctx.restore();
-
-  // Content area background
-  ctx.fillStyle = C.white;
-  ctx.fillRect(0, L.factcheck.y + 55, W, L.factcheck.h - 55);
-
-  // 2 fact points (sentences 2-3 if available)
-  const len = sentences.length;
-  const factItems = len >= 4 ? sentences.slice(2, 4)
-                  : len >= 2 ? sentences.slice(-2)
-                  : sentences.slice(0, 1);
-  const factBottom = L.factcheck.y + L.factcheck.h - 20;
-  let   factY      = L.factcheck.y + 55 + 32;
-
-  for (const fact of factItems) {
-    if (factY > factBottom - 38) break;
-
-    // Green checkmark path
-    const ckX = 38, ckY = factY + 4, ckSz = 22;
-    ctx.strokeStyle = C.green;
-    ctx.lineWidth   = 3.5;
-    ctx.lineCap     = 'round';
-    ctx.lineJoin    = 'round';
-    ctx.beginPath();
-    ctx.moveTo(ckX, ckY + ckSz * 0.52);
-    ctx.lineTo(ckX + ckSz * 0.38, ckY + ckSz * 0.9);
-    ctx.lineTo(ckX + ckSz, ckY + ckSz * 0.05);
-    ctx.stroke();
-
-    ctx.fillStyle    = C.green;
-    ctx.font         = f(24, 'normal');
-    ctx.textAlign    = 'left';
-    ctx.textBaseline = 'top';
-    const factLinesLeft = Math.max(1, Math.floor((factBottom - factY) / 38));
-    factY = wrapText(ctx, fact, 76, factY, W - 110, 38, Math.min(2, factLinesLeft));
-    factY += 22;
-  }
-
-  // Amber warning if not enough facts
-  if (factItems.length < 2 && factY + 60 < factBottom) {
-    ctx.fillStyle = '#FFF3CD';
-    roundRect(ctx, 28, factY + 10, W - 56, 54, 8);
-    ctx.fill();
-    ctx.strokeStyle = '#DDAA00';
-    ctx.lineWidth   = 1;
-    roundRect(ctx, 28, factY + 10, W - 56, 54, 8);
-    ctx.stroke();
-    ctx.fillStyle    = '#7A5500';
-    ctx.font         = f(22, 'normal');
-    ctx.textAlign    = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('[!]  अभी तक कोई आधिकारिक पुष्टि नहीं', 48, factY + 10 + 27);
-  }
-
-  // ── [5] लोगों की प्रतिक्रिया  y=1260, h=360 ────────────────────────────────────
-  // Header bar (55px)
-  drawSectionHeader(ctx, L.reaction.y, 55, C.amber, 'लोगों की प्रतिक्रिया', C.white);
-
-  // Triangle accent in header
-  const trHX = 24, trHY = L.reaction.y + 16, trHH = 22;
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.beginPath();
-  ctx.moveTo(trHX, trHY);
-  ctx.lineTo(trHX, trHY + trHH);
-  ctx.lineTo(trHX + trHH * 0.75, trHY + trHH / 2);
-  ctx.closePath();
-  ctx.fill();
-
-  // Content area background
-  ctx.fillStyle = C.amberBg;
-  ctx.fillRect(0, L.reaction.y + 55, W, L.reaction.h - 55);
-
-  const genericReactions = [
-    'इस खबर पर सोशल मीडिया में जमकर चर्चा है',
-    'पाठकों ने इस मामले पर अपनी कड़ी प्रतिक्रिया दी',
-    'लोग इस खबर को तेजी से शेयर कर रहे हैं',
-  ];
-  const reactionPool = len >= 5 ? sentences.slice(-3)
-                     : len >= 3 ? [sentences[len - 1], ...genericReactions.slice(0, 2)]
-                     : genericReactions;
-
-  const reactBottom = L.reaction.y + L.reaction.h - 20;
-  let   reactY      = L.reaction.y + 55 + 28;
+// ── drawDots ──────────────────────────────────────────────────────────────────
+// Draws the 3 slide-indicator dots just above the branding bar.
+function drawDots(ctx, activeIndex, brandingBarY) {
+  const dotR    = 8;
+  const gap     = 28;
+  const totalW  = gap * 2;
+  const startX  = W / 2 - totalW / 2;
+  const y       = brandingBarY - 24;
 
   for (let i = 0; i < 3; i++) {
-    const text = reactionPool[i] || genericReactions[i];
-    if (!text || reactY > reactBottom - 38) break;
-
-    // Amber triangle bullet
-    const trX = 34, trY = reactY + 6, trH = 18;
-    ctx.fillStyle = C.amber;
     ctx.beginPath();
-    ctx.moveTo(trX, trY);
-    ctx.lineTo(trX, trY + trH);
-    ctx.lineTo(trX + trH * 0.75, trY + trH / 2);
-    ctx.closePath();
+    ctx.arc(startX + i * gap, y, dotR, 0, Math.PI * 2);
+    ctx.fillStyle = i === activeIndex ? C.red : '#D0D0D0';
     ctx.fill();
+  }
+}
 
-    ctx.fillStyle    = C.mid;
-    ctx.font         = f(24, 'normal');
+// ── SLIDE 1 — Breaking News Hero ────────────────────────────────────────────────
+function drawSlide1(ctx, slide1 = {}, category) {
+  const {
+    headline      = '',
+    subHeadline   = '',
+    bullet        = '',
+    location      = '',
+    breakingLabel = 'BREAKING NEWS',
+  } = slide1;
+
+  // Background
+  ctx.fillStyle = C.white;
+  ctx.fillRect(0, 0, W, H);
+
+  // Top bar — red, 80px
+  ctx.fillStyle = C.red;
+  ctx.fillRect(0, 0, W, 80);
+
+  ctx.fillStyle    = C.white;
+  ctx.font         = f(32, 'bold');
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(breakingLabel, 30, 40);
+
+  ctx.fillStyle    = C.yellow;
+  ctx.font         = f(32, 'bold');
+  ctx.textAlign    = 'right';
+  ctx.fillText('ताज़ा खबर', W - 30, 40);
+
+  // Category tag — left, below top bar
+  if (category) {
+    ctx.font = f(22, 'bold');
+    const tagLabel = `# ${category}`;
+    const tagW = ctx.measureText(tagLabel).width + 36;
+    const tagH = 44;
+    ctx.fillStyle = C.lightGray;
+    roundRect(ctx, 30, 100, tagW, tagH, tagH / 2);
+    ctx.fill();
+    ctx.fillStyle    = C.dark;
     ctx.textAlign    = 'left';
-    ctx.textBaseline = 'top';
-    const reactLinesLeft = Math.max(1, Math.floor((reactBottom - reactY) / 38));
-    reactY = wrapText(ctx, text, 68, reactY, W - 108, 38, Math.min(2, reactLinesLeft));
-    reactY += 20;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tagLabel, 30 + 18, 100 + tagH / 2);
   }
 
-  // ── [6] CAPTION BAR  y=1620, h=180 ───────────────────────────────────────────
-  ctx.fillStyle = C.navy;
-  ctx.fillRect(0, L.caption.y, W, L.caption.h);
+  // Location badge — top right corner
+  if (location) {
+    ctx.font = f(24, 'bold');
+    const label = `📍 ${location}`;
+    const padX  = 22;
+    const boxH  = 46;
+    const boxW  = ctx.measureText(label).width + padX * 2;
+    const boxX  = W - boxW - 30;
+    const boxY  = 100;
 
-  // "CAPTION" pill label
-  ctx.font = f(17, 'bold');
-  const cpW = ctx.measureText('CAPTION').width + 22;
-  const cpH = 30;
-  const cpX = 22;
-  const cpY = L.caption.y + 14;
+    ctx.strokeStyle = C.red;
+    ctx.lineWidth   = 2;
+    roundRect(ctx, boxX, boxY, boxW, boxH, boxH / 2);
+    ctx.stroke();
 
+    ctx.fillStyle    = C.red;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, boxX + boxW / 2, boxY + boxH / 2);
+  }
+
+  // Main headline — large bold, left aligned, max 3 lines
+  ctx.fillStyle    = C.black;
+  ctx.font         = f(76, 'bold');
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'top';
+  let y = wrapText(ctx, headline, 30, 190, W - 60, 90, 3);
+
+  // Sub-headline box — red left border, light gray bg, bullet point
+  y += 40;
+  const boxPadding = 30;
+  ctx.font = f(34, 'normal');
+
+  // Pre-measure box height by wrapping into a temp count (max 4 lines)
+  const maxBoxWidth = W - 60 - 6 - boxPadding * 2 - 40;
+  const tmpLines = [];
+  {
+    const words = String(subHeadline || bullet || '').split(' ');
+    let current = '';
+    for (const word of words) {
+      const trial = current ? `${current} ${word}` : word;
+      if (ctx.measureText(trial).width > maxBoxWidth && current) {
+        tmpLines.push(current);
+        current = word;
+        if (tmpLines.length >= 4) break;
+      } else {
+        current = trial;
+      }
+    }
+    if (current && tmpLines.length < 4) tmpLines.push(current);
+  }
+  const lineHeight = 46;
+  const boxH = boxPadding * 2 + Math.max(1, tmpLines.length) * lineHeight;
+
+  // Light gray background
+  ctx.fillStyle = C.lightGray;
+  ctx.fillRect(30, y, W - 60, boxH);
+
+  // Red left border
   ctx.fillStyle = C.red;
-  roundRect(ctx, cpX, cpY, cpW, cpH, cpH / 2);
+  ctx.fillRect(30, y, 6, boxH);
+
+  // Bullet dot + text
+  ctx.fillStyle = C.red;
+  ctx.beginPath();
+  ctx.arc(30 + 6 + 26, y + boxPadding + 14, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle    = C.dark;
+  ctx.font         = f(34, 'normal');
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'top';
+  wrapText(ctx, subHeadline || bullet, 30 + 6 + 50, y + boxPadding, maxBoxWidth, lineHeight, 4);
+
+  // Branding + dots
+  const barY = drawBrandingBar(ctx);
+  drawDots(ctx, 0, barY);
+}
+
+// ── SLIDE 2 — Details ───────────────────────────────────────────────────────────
+function drawSlide2(ctx, slide2 = {}) {
+  const {
+    sectionTitle = 'क्या है मामला?',
+    bullet1 = '',
+    bullet2 = '',
+    bullet3 = '',
+    infoBox = '',
+    infoBoxLabel = 'प्रारंभिक जानकारी:',
+  } = slide2;
+
+  // Background
+  ctx.fillStyle = C.white;
+  ctx.fillRect(0, 0, W, H);
+
+  // Top header bar — dark navy, 70px
+  const headerH = 70;
+  ctx.fillStyle = C.navy;
+  ctx.fillRect(0, 0, W, headerH);
+
+  // Red bullet dot
+  ctx.fillStyle = C.red;
+  ctx.beginPath();
+  ctx.arc(50, headerH / 2, 9, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.fillStyle    = C.white;
-  ctx.textAlign    = 'center';
+  ctx.font         = f(32, 'bold');
+  ctx.textAlign    = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText('CAPTION', cpX + cpW / 2, cpY + cpH / 2);
+  ctx.fillText(sectionTitle, 80, headerH / 2);
 
-  // Caption text (max 3 lines)
-  const captionText = caption || summary.substring(0, 200) || '';
-  ctx.fillStyle    = 'rgba(255,255,255,0.9)';
+  // Body — 3 bullet points with red circle bullets
+  const bullets = [bullet1, bullet2, bullet3].filter(Boolean);
+  let y = headerH + 60;
+  const maxWidth = W - 60 - 50;
+
+  ctx.font = f(36, 'normal');
+  for (const item of bullets) {
+    ctx.fillStyle = C.red;
+    ctx.beginPath();
+    ctx.arc(50, y + 18, 10, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle    = C.dark;
+    ctx.textAlign    = 'left';
+    ctx.textBaseline = 'top';
+    y = wrapText(ctx, item, 80, y, maxWidth, 50, 3);
+    y += 40;
+  }
+
+  // Info box — bottom half, blue-gray bg with blue left border
+  const boxY = Math.max(y + 30, 560);
+  const boxH = H - 80 - boxY - 40;
+
+  ctx.fillStyle = C.blueGray;
+  ctx.fillRect(30, boxY, W - 60, boxH);
+
+  ctx.fillStyle = C.blue;
+  ctx.fillRect(30, boxY, 6, boxH);
+
+  const padX = 36;
+  ctx.fillStyle    = C.blue;
+  ctx.font         = f(32, 'bold');
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'top';
+  let infoY = boxY + 34;
+  ctx.fillText(infoBoxLabel, 30 + padX, infoY);
+  infoY += 56;
+
+  ctx.fillStyle = C.dark;
+  ctx.font      = f(32, 'normal');
+  wrapText(ctx, infoBox, 30 + padX, infoY, W - 60 - padX * 2, 46, 6);
+
+  // Branding + dots
+  const barY = drawBrandingBar(ctx);
+  drawDots(ctx, 1, barY);
+}
+
+// ── SLIDE 3 — Fact Check + Reaction ─────────────────────────────────────────────
+function drawSlide3(ctx, slide3 = {}, hashtags = '') {
+  const {
+    factCheckTitle = '✔ फैक्ट चेक',
+    factCheck1 = '',
+    factCheck2 = '',
+    reactionTitle = '▶ लोगों की प्रतिक्रिया',
+    reaction1 = '',
+    reaction2 = '',
+    noteText = '',
+  } = slide3;
+
+  // Background
+  ctx.fillStyle = C.white;
+  ctx.fillRect(0, 0, W, H);
+
+  let y = 0;
+
+  // ── Section 1: फैक्ट चेक — green header ─────────────────────────────────────
+  const sec1HeaderH = 60;
+  ctx.fillStyle = C.green;
+  ctx.fillRect(0, y, W, sec1HeaderH);
+
+  ctx.fillStyle    = C.white;
+  ctx.font         = f(30, 'bold');
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(factCheckTitle, 30, y + sec1HeaderH / 2);
+  y += sec1HeaderH;
+
+  const factItems = [factCheck1, factCheck2].filter(Boolean);
+  const sec1BodyH = 60 + factItems.length * 80;
+  ctx.fillStyle = C.lightGreen;
+  ctx.fillRect(0, y, W, sec1BodyH);
+
+  let factY = y + 28;
+  ctx.font = f(32, 'normal');
+  for (const item of factItems) {
+    ctx.fillStyle    = C.green;
+    ctx.font         = f(32, 'bold');
+    ctx.textAlign    = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('✔', 30, factY);
+
+    ctx.fillStyle = C.dark;
+    ctx.font      = f(30, 'normal');
+    wrapText(ctx, item, 70, factY, W - 60 - 40, 42, 2);
+    factY += 80;
+  }
+  y += sec1BodyH;
+
+  // ── Section 2: लोगों की प्रतिक्रिया — orange header ──────────────────────────
+  const sec2HeaderH = 60;
+  ctx.fillStyle = C.orange;
+  ctx.fillRect(0, y, W, sec2HeaderH);
+
+  ctx.fillStyle    = C.white;
+  ctx.font         = f(30, 'bold');
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(reactionTitle, 30, y + sec2HeaderH / 2);
+  y += sec2HeaderH;
+
+  const reactionItems = [reaction1, reaction2].filter(Boolean);
+  const sec2BodyH = 60 + reactionItems.length * 80;
+  ctx.fillStyle = C.lightYellow;
+  ctx.fillRect(0, y, W, sec2BodyH);
+
+  let reactY = y + 28;
+  for (const item of reactionItems) {
+    ctx.fillStyle    = C.orange;
+    ctx.font         = f(32, 'bold');
+    ctx.textAlign    = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('▶', 30, reactY);
+
+    ctx.fillStyle = C.dark;
+    ctx.font      = f(30, 'normal');
+    wrapText(ctx, item, 70, reactY, W - 60 - 40, 42, 2);
+    reactY += 80;
+  }
+  y += sec2BodyH;
+
+  // ── Warning box ───────────────────────────────────────────────────────────
+  y += 30;
+  const warnPadding = 26;
+  ctx.font = f(28, 'normal');
+  const warnMaxWidth = W - 60 - warnPadding * 2 - 50;
+  const warnLines = [];
+  {
+    const words = String(noteText).split(' ');
+    let current = '';
+    for (const word of words) {
+      const trial = current ? `${current} ${word}` : word;
+      if (ctx.measureText(trial).width > warnMaxWidth && current) {
+        warnLines.push(current);
+        current = word;
+        if (warnLines.length >= 3) break;
+      } else {
+        current = trial;
+      }
+    }
+    if (current && warnLines.length < 3) warnLines.push(current);
+  }
+  const warnLineHeight = 38;
+  const warnH = warnPadding * 2 + Math.max(1, warnLines.length) * warnLineHeight;
+
+  ctx.fillStyle = C.warnBg;
+  roundRect(ctx, 30, y, W - 60, warnH, 10);
+  ctx.fill();
+  ctx.strokeStyle = C.warnBorder;
+  ctx.lineWidth   = 1.5;
+  roundRect(ctx, 30, y, W - 60, warnH, 10);
+  ctx.stroke();
+
+  ctx.fillStyle    = '#7A5500';
+  ctx.font         = f(28, 'bold');
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('⚠️ नोट:', 30 + warnPadding, y + warnPadding);
+
+  ctx.font = f(28, 'normal');
+  wrapText(ctx, noteText, 30 + warnPadding + 110, y + warnPadding, warnMaxWidth - 60, warnLineHeight, 3);
+  y += warnH;
+
+  // ── Hashtags row ──────────────────────────────────────────────────────────
+  y += 24;
+  ctx.fillStyle    = C.gray;
   ctx.font         = f(22, 'normal');
   ctx.textAlign    = 'left';
   ctx.textBaseline = 'top';
-  wrapText(ctx, captionText, 22, L.caption.y + 56, W - 44, 32, 3);
+  const hashtagLine = String(hashtags).split(/\s+/).filter(Boolean).join(', ');
+  wrapText(ctx, hashtagLine, 30, y, W - 60, 30, 2);
 
-  // "SHARE >" button — bottom right
-  ctx.font = f(19, 'bold');
-  const shareLabel = 'SHARE  >';
-  const shW = ctx.measureText(shareLabel).width + 28;
-  const shH = 38;
-  const shX = W - shW - 22;
-  const shY = L.caption.y + L.caption.h - shH - 14;
-
-  ctx.fillStyle = C.red;
-  roundRect(ctx, shX, shY, shW, shH, 6);
-  ctx.fill();
-
-  ctx.fillStyle    = C.white;
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(shareLabel, shX + shW / 2, shY + shH / 2);
-
-  // ── [7] FOOTER  y=1800, h=120 ─────────────────────────────────────────────────
-  ctx.fillStyle = C.black;
-  ctx.fillRect(0, L.footer.y, W, L.footer.h);
-
-  // Red top accent
-  ctx.fillStyle = C.red;
-  ctx.fillRect(0, L.footer.y, W, 3);
-
-  const ftMidY = L.footer.y + L.footer.h / 2;
-
-  // First 3 hashtags — golden, left
-  const hashArr  = String(hashtags).split(/\s+/).filter(h => h.startsWith('#')).slice(0, 3);
-  const hashLine = hashArr.length ? hashArr.join(' ') : '#FactWala #SachKiKhabar';
-
-  ctx.fillStyle    = C.gold;
-  ctx.font         = f(20, 'normal');
-  ctx.textAlign    = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(hashLine, 28, ftMidY);
-
-  // "factwala.in" — center, white bold
-  ctx.fillStyle = C.white;
-  ctx.font      = f(22, 'bold');
-  ctx.textAlign = 'center';
-  ctx.fillText('factwala.in', W / 2, ftMidY);
-
-  // Date — right, gray
-  const dateStr = new Date().toLocaleDateString('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
-  ctx.fillStyle = C.gray;
-  ctx.font      = f(20, 'normal');
-  ctx.textAlign = 'right';
-  ctx.fillText(dateStr, W - 28, ftMidY);
-
-  // ── Save ───────────────────────────────────────────────────────────────────────
-  const savePath = outputPath || path.join(OUTPUT_DIR, `news_${Date.now()}.jpg`);
-  fs.mkdirSync(path.dirname(savePath), { recursive: true });
-  const buffer = canvas.toBuffer('image/jpeg', 95);
-  fs.writeFileSync(savePath, buffer);
-  logger.success('News image generated', { path: savePath, sizeKB: Math.round(buffer.length / 1024) });
-  return savePath;
+  // Branding + dots
+  const barY = drawBrandingBar(ctx);
+  drawDots(ctx, 2, barY);
 }
 
-// Backwards-compatible wrapper — index.js calls generateNewsImage(headline, summary)
-async function generateNewsImage(headline, summary) {
-  return generateImage({ headline, summary, hashtags: '#FactWala #SachKiKhabar' });
+// ── generateCarouselImages ───────────────────────────────────────────────────
+/**
+ * Generates 3 branded 1080x1080 PNG slides for "Fact Wala Today News".
+ * @param {object} data      - { slide1, slide2, slide3, hashtags, category }
+ * @param {string|number} articleId - unique identifier used in output filenames
+ * @returns {Promise<string[]>} array of 3 file paths (slide_{articleId}_1.png ... _3.png)
+ */
+async function generateCarouselImages(data = {}, articleId) {
+  await ensureFont();
+
+  const { slide1 = {}, slide2 = {}, slide3 = {}, hashtags = '', category = '' } = data;
+
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
+  const paths = [];
+  const slideDrawFns = [
+    (ctx) => drawSlide1(ctx, slide1, category),
+    (ctx) => drawSlide2(ctx, slide2),
+    (ctx) => drawSlide3(ctx, slide3, hashtags),
+  ];
+
+  for (let i = 0; i < 3; i++) {
+    const canvas = createCanvas(W, H);
+    const ctx    = canvas.getContext('2d');
+    slideDrawFns[i](ctx);
+
+    const outputPath = path.join(OUTPUT_DIR, `slide_${articleId}_${i + 1}.png`);
+    const buffer = canvas.toBuffer('image/png');
+    fs.writeFileSync(outputPath, buffer);
+    logger.success('Carousel slide generated', { path: outputPath, sizeKB: Math.round(buffer.length / 1024) });
+    paths.push(outputPath);
+  }
+
+  return paths;
 }
 
-module.exports = { generateImage, generateNewsImage };
+module.exports = { generateCarouselImages };

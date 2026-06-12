@@ -49,4 +49,86 @@ async function createMediaContainer(imageUrl, caption) {
   return containerId;
 }
 
-module.exports = { createMediaContainer };
+/**
+ * Creates a carousel item (child) container for a single image.
+ * Must be created with is_carousel_item=true and NOT published directly —
+ * pass the returned ID into createCarouselContainer().
+ */
+async function createCarouselItem(imageUrl) {
+  const igUserId    = process.env.INSTAGRAM_BUSINESS_ID;
+  const accessToken = process.env.META_ACCESS_TOKEN;
+
+  if (!igUserId)    throw new Error('INSTAGRAM_BUSINESS_ID is not set');
+  if (!accessToken) throw new Error('META_ACCESS_TOKEN is not set');
+
+  logger.info('Creating carousel item container...', { igUserId });
+
+  const response = await retry(
+    () => axios.post(`${GRAPH_BASE}/${igUserId}/media`, null, {
+      params: {
+        image_url:        imageUrl,
+        is_carousel_item: true,
+        access_token:     accessToken,
+      },
+      timeout: 30000,
+    }),
+    { attempts: 3, delayMs: 5000, label: 'Instagram createCarouselItem' }
+  ).catch(err => {
+    const apiErr = err.response?.data?.error;
+    if (apiErr) {
+      const msg = `Instagram API ${apiErr.code} (${apiErr.type}): ${apiErr.message}`;
+      if (apiErr.code === 190) throw new Error(`${msg} — Access token expired, regenerate it.`);
+      throw new Error(msg);
+    }
+    throw err;
+  });
+
+  const containerId = response.data?.id;
+  if (!containerId) throw new Error(`No container ID in response: ${JSON.stringify(response.data)}`);
+
+  logger.success('Carousel item container created', { containerId });
+  return containerId;
+}
+
+/**
+ * Creates the parent carousel container that bundles 2-10 carousel item
+ * containers (created via createCarouselItem) into a single post.
+ */
+async function createCarouselContainer(childContainerIds, caption) {
+  const igUserId    = process.env.INSTAGRAM_BUSINESS_ID;
+  const accessToken = process.env.META_ACCESS_TOKEN;
+
+  if (!igUserId)    throw new Error('INSTAGRAM_BUSINESS_ID is not set');
+  if (!accessToken) throw new Error('META_ACCESS_TOKEN is not set');
+
+  logger.info('Creating carousel parent container...', { igUserId, children: childContainerIds.length });
+
+  const response = await retry(
+    () => axios.post(`${GRAPH_BASE}/${igUserId}/media`, null, {
+      params: {
+        media_type:   'CAROUSEL',
+        children:     childContainerIds.join(','),
+        caption:      caption,
+        access_token: accessToken,
+      },
+      timeout: 30000,
+    }),
+    { attempts: 3, delayMs: 5000, label: 'Instagram createCarouselContainer' }
+  ).catch(err => {
+    const apiErr = err.response?.data?.error;
+    if (apiErr) {
+      const msg = `Instagram API ${apiErr.code} (${apiErr.type}): ${apiErr.message}`;
+      if (apiErr.code === 190) throw new Error(`${msg} — Access token expired, regenerate it.`);
+      throw new Error(msg);
+    }
+    throw err;
+  });
+
+  const containerId = response.data?.id;
+  if (!containerId) throw new Error(`No container ID in response: ${JSON.stringify(response.data)}`);
+
+  logger.success('Carousel parent container created', { containerId });
+  return containerId;
+}
+
+module.exports = { createMediaContainer, createCarouselItem, createCarouselContainer };

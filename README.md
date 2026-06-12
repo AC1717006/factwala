@@ -1,6 +1,6 @@
 # ⚡ FactWala — Instagram Hindi News Bot
 
-> Automatically fetches top Hindi news → rewrites with **Groq AI** → generates a branded **1080x1080 image** → publishes to **Instagram** twice daily via GitHub Actions.
+> Automatically fetches top Hindi news → rewrites into a **3-slide carousel** with **Claude AI** → generates branded **1080x1080 slide images** → publishes a **carousel post** to **Instagram** twice daily via GitHub Actions.
 
 ---
 
@@ -9,15 +9,16 @@
 ```
 GNews API (Hindi/India)
      ↓  top 10 articles, pick best
-Groq AI — llama-3.3-70b-versatile
-     ↓  headline + summary + hashtags + caption
-Canvas  — 1080×1080 FactWala branded image
+Claude AI — claude-sonnet-4-6
+     ↓  headline + 3 slides (title/body/colors) + hashtags + caption
+Canvas  — 3x 1080×1080 FactWala branded slide images
      ↓  saved locally
 ImgBB CDN
-     ↓  public HTTPS URL
+     ↓  3x public HTTPS URLs
 Instagram Graph API v21.0
-     ↓  Step 1: create media container
-     ↓  Step 2: publish post
+     ↓  Step 1: create carousel item containers (x3)
+     ↓  Step 2: create carousel parent container
+     ↓  Step 3: publish carousel post
 postedNews.json — mark as done (prevent duplicates)
 ```
 
@@ -47,13 +48,16 @@ npm start
 | Variable | Free? | Get it at |
 |---|---|---|
 | `News_API` | Yes (100 req/day) | [gnews.io](https://gnews.io) |
-| `GROQ_API_KEY` | Yes | [console.groq.com](https://console.groq.com) |
+| `CLAUDE_API_KEY` | Paid | [console.anthropic.com](https://console.anthropic.com) |
 | `IMGBB_API_KEY` | Yes | [imgbb.com/api](https://imgbb.com/api) |
 | `META_ACCESS_TOKEN` | Yes | [developers.facebook.com/tools/explorer](https://developers.facebook.com/tools/explorer/) |
 | `INSTAGRAM_BUSINESS_ID` | - | Meta Business Suite |
 | `FACEBOOK_PAGE_ID` | - | Meta Business Suite |
 | `META_APP_ID` | - | [developers.facebook.com](https://developers.facebook.com) |
 | `META_APP_SECRET` | - | Meta Developer Portal |
+| `GROQ_API_KEY` | Yes (legacy, unused) | [console.groq.com](https://console.groq.com) |
+
+> `CLAUDE_MODEL` (optional) overrides the default `claude-sonnet-4-6` model.
 
 ---
 
@@ -70,13 +74,14 @@ instagram-news-bot/
 │   ├── news/
 │   │   └── fetchNews.js              # GNews API — top Hindi news
 │   ├── ai/
-│   │   └── rewriteNews.js            # Groq AI — llama-3.3-70b rewrite
+│   │   └── rewriteNews.js            # Claude AI — 3-slide carousel rewrite
 │   ├── image/
-│   │   └── generateImage.js          # Canvas — 1080×1080 FactWala image
+│   │   ├── generateCarousel.js       # Canvas — 3x 1080×1080 carousel slides
+│   │   └── generateImage.js          # (legacy) single 1080×1920 image
 │   ├── upload/
 │   │   └── uploadImgBB.js            # ImgBB — upload & get public URL
 │   ├── instagram/
-│   │   ├── createMedia.js            # Graph API — create container
+│   │   ├── createMedia.js            # Graph API — create container(s) / carousel
 │   │   └── publishMedia.js           # Graph API — publish post
 │   ├── storage/
 │   │   └── postedNews.json           # Duplicate prevention database
@@ -109,6 +114,7 @@ instagram-news-bot/
 | `META_APP_SECRET` | `META_APP_SECRET` |
 | `META_ACCESS_TOKEN` | `META_ACCESS_TOKEN` |
 | `NEWS_API` | `News_API` |
+| `CLAUDE_API_KEY` | `CLAUDE_API_KEY` |
 | `GROQ_API_KEY` | `GROQ_API_KEY` |
 | `IMGBB_API_KEY` | `IMGBB_API_KEY` |
 
@@ -125,9 +131,9 @@ npm test
 
 Runs the full pipeline **except** the Instagram publish step:
 - Fetches latest Hindi news article
-- Rewrites it with Groq AI (llama-3.3-70b)
-- Generates & saves the 1080x1080 image to `output/`
-- Uploads image to ImgBB
+- Rewrites it into a 3-slide carousel with Claude AI
+- Generates & saves 3x 1080x1080 slide images to `output/`
+- Uploads all 3 images to ImgBB
 - Prints the Instagram caption to console
 
 When all steps pass, run `npm start` to go live.
@@ -156,7 +162,8 @@ Every external API call uses exponential back-off retry (3 attempts, 2-6s delay)
 |---|---|
 | Instagram `190` | Access token expired — regenerate |
 | Instagram `9007` | Not a Business/Creator account |
-| `Groq 429` | Rate limit — auto-retried |
+| Claude `401 invalid x-api-key` | Check `CLAUDE_API_KEY` |
+| Claude `429` | Rate limit — auto-retried |
 | `ImgBB upload failed` | Check `IMGBB_API_KEY` |
 | `GNews no articles` | API quota or network issue |
 
