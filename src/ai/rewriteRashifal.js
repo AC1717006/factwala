@@ -96,7 +96,7 @@ async function generateRashifal(dateStr) {
   const response = await retry(
     () => client.messages.create({
       model:      MODEL,
-      max_tokens: 2000,
+      max_tokens: 4096,
       system:     SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: buildUserPrompt(dateStr) },
@@ -114,7 +114,16 @@ async function generateRashifal(dateStr) {
   } catch (e) {
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) throw new Error(`Could not extract JSON from Claude response: ${raw.substring(0, 200)}`);
-    parsed = JSON.parse(match[0]);
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch (e2) {
+      logger.error('Claude returned invalid JSON', { stopReason: response.stop_reason, raw });
+      throw new Error(`Failed to parse Claude JSON response: ${e2.message}`);
+    }
+  }
+
+  if (response.stop_reason === 'max_tokens') {
+    logger.warn('Claude response was truncated at max_tokens — output may be incomplete');
   }
 
   const required = ['post_title', 'date', 'slides', 'caption'];
