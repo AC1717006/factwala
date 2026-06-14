@@ -43,6 +43,45 @@ npm start
 
 ---
 
+## Utility Scripts
+
+```bash
+# Validate Instagram/Meta credentials & permissions (no posting)
+node scripts/validate.js
+
+# Publish a single test post to Instagram
+node scripts/testPost.js
+```
+
+---
+
+## Rashifal Bot (Daily Astrology Carousel)
+
+A second, independent bot (`rashifal.js`) posts a daily Hindi "आज का राशिफल" carousel —
+3 slides x 4 zodiac signs, each with Career / Dhan / Prem / Salah, in a Dark Blue + Gold theme.
+
+```
+Claude AI — claude-sonnet-4-6 (src/ai/rewriteRashifal.js)
+     ↓  12 rashis across 3 slides (career/money/love/advice + caption)
+Canvas — 3x 1080x1080 FactWala Astrology slide images (src/image/generateRashifalCarousel.js)
+ImgBB CDN → 3x public HTTPS URLs
+Instagram Graph API → carousel post
+src/storage/postedRashifal.json — one post per day (prevent duplicates)
+```
+
+```bash
+# Test (generates images + ImgBB upload, no Instagram posting)
+npm run rashifal:test
+
+# Go live
+npm run rashifal
+```
+
+Runs automatically at **6:00 AM IST** via `.github/workflows/rashifal.yml` (uses the same
+`CLAUDE_API_KEY`, `META_*`, and `IMGBB_API_KEY` secrets — no `News_API` needed).
+
+---
+
 ## Required API Keys
 
 | Variable | Free? | Get it at |
@@ -69,6 +108,10 @@ instagram-news-bot/
 ├── package.json
 ├── .env.example
 ├── .gitignore
+│
+├── scripts/
+│   ├── validate.js                   # Validate Instagram/Meta credentials & permissions
+│   └── testPost.js                   # Publish a single test post to Instagram
 │
 ├── src/
 │   ├── news/

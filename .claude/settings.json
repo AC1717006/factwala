@@ -13,7 +13,14 @@
       "Bash(node -e \"require\\('./src/upload/uploadImgBB'\\); require\\('./src/instagram/createMedia'\\); require\\('./src/instagram/publishMedia'\\); require\\('./src/news/fetchNews'\\); require\\('./src/ai/rewriteNews'\\); require\\('./src/image/generateImage'\\); require\\('./src/utils/retry'\\); console.log\\('All modules load OK'\\)\")",
       "Bash(node scripts/validate.js)",
       "Bash(node -e \"const c = require\\('@napi-rs/canvas'\\); console.log\\(Object.keys\\(c\\)\\);\")",
-      "Bash(node -e \"const { GlobalFonts } = require\\('@napi-rs/canvas'\\); console.log\\(Object.getOwnPropertyNames\\(GlobalFonts\\)\\);\")"
+      "Bash(node -e \"const { GlobalFonts } = require\\('@napi-rs/canvas'\\); console.log\\(Object.getOwnPropertyNames\\(GlobalFonts\\)\\);\")",
+      "Bash(git status *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)",
+      "Bash(git rebase *)",
+      "Bash(git stash *)"
     ]
   }
 }
