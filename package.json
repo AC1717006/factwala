@@ -6,8 +6,10 @@
   "scripts": {
     "start":    "node index.js",
     "test":     "node index.js --test",
-    "rashifal":      "node rashifal.js",
-    "rashifal:test": "node rashifal.js --test",
+    "rashifal":        "node rashifal.js",
+    "rashifal:test":   "node rashifal.js --test",
+    "indiarank":       "node indiarank.js",
+    "indiarank:test":  "node indiarank.js --test",
     "validate": "node scripts/validate.js",
     "testpost": "node scripts/testPost.js"
   },
