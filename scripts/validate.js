@@ -22,7 +22,7 @@ const axios   = require('axios');
 const { createCanvas } = require('@napi-rs/canvas');
 const fs      = require('fs');
 const path    = require('path');
-const { uploadToImgBB } = require('../src/upload/uploadImgBB');
+const { uploadPublicImage, stripSignature } = require('../src/upload/uploadImage');
 const { retry }         = require('../src/utils/retry');
 
 const GRAPH   = 'https://graph.facebook.com/v21.0';
@@ -124,8 +124,13 @@ function checkEnvVars() {
     META_APP_ID:           APP_ID,
     META_APP_SECRET:       APP_SEC,
     META_ACCESS_TOKEN:     TOKEN,
-    IMGBB_API_KEY:         process.env.IMGBB_API_KEY,
   };
+  // Image host: S3 (IMAGE_HOST=s3) or ImgBB (default)
+  if ((process.env.IMAGE_HOST || 'imgbb').toLowerCase() === 's3') {
+    required.S3_BUCKET = process.env.S3_BUCKET;
+  } else {
+    required.IMGBB_API_KEY = process.env.IMGBB_API_KEY;
+  }
 
   let allPresent = true;
   for (const [key, val] of Object.entries(required)) {
@@ -312,11 +317,11 @@ async function createContainerDryRun() {
 
   let imgPath, imageUrl;
   try {
-    process.stdout.write('  → Generating test image and uploading to ImgBB... ');
+    process.stdout.write('  → Generating test image and uploading to image host... ');
     imgPath   = await generateTestImage();
-    imageUrl  = await uploadToImgBB(imgPath);
+    imageUrl  = await uploadPublicImage(imgPath);
     console.log(`${C.green}done${C.reset}`);
-    info('Test image URL', imageUrl);
+    info('Test image URL', stripSignature(imageUrl));
   } catch (err) {
     bad('Image upload failed', err.message);
     results.containerCreated = false;

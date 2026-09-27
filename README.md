@@ -135,6 +135,24 @@ npm run gemini:test      # 3 sample slides → output/gemini_slide_*.jpg
 
 ---
 
+## S3 Image Hosting (instead of ImgBB)
+
+Instagram's API only accepts a public `https://` image link. With `IMAGE_HOST=s3`
+the bot uploads slides to a **private** S3 bucket and hands Instagram a
+**presigned link** that expires after `S3_URL_EXPIRES` (default 2 h). The bucket
+never becomes public and Block Public Access stays ON.
+
+One-time AWS setup:
+1. Create a bucket (e.g. in `ap-south-1`), keep "Block all public access" ON.
+2. Give the EC2 instance role the policy in `deploy/s3-iam-policy.json`
+   (only `s3:PutObject` + `s3:GetObject` on `<bucket>/factwala/*`).
+3. Optional cleanup: apply `deploy/s3-lifecycle.json` (deletes slides after 30 days).
+4. `.env`: `IMAGE_HOST=s3`, `S3_BUCKET=<bucket>`, `S3_REGION=ap-south-1`.
+
+Signed links are never written to the posted-* databases (only the plain object path).
+
+---
+
 ## Running on EC2
 
 ```
@@ -160,7 +178,7 @@ cron (bot user) → scripts/run-job.sh <job> → node <entry>.js
 |---|---|---|
 | `News_API` | Yes (100 req/day) | [gnews.io](https://gnews.io) |
 | `CLAUDE_API_KEY` | Paid | [console.anthropic.com](https://console.anthropic.com) |
-| `IMGBB_API_KEY` | Yes | [imgbb.com/api](https://imgbb.com/api) |
+| `IMGBB_API_KEY` | Yes (only if `IMAGE_HOST=imgbb`) | [imgbb.com/api](https://imgbb.com/api) |
 | `META_ACCESS_TOKEN` | Yes | [developers.facebook.com/tools/explorer](https://developers.facebook.com/tools/explorer/) |
 | `INSTAGRAM_BUSINESS_ID` | — | Meta Business Suite |
 | `FACEBOOK_PAGE_ID` | — | Meta Business Suite |

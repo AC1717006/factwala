@@ -9,7 +9,7 @@ const path = require('path');
 
 const { generateIndiaRank }             = require('./src/ai/rewriteIndiaRank');
 const { generateIndiaRankCarouselImages } = require('./src/image/generateIndiaRankCarousel');
-const { uploadToImgBB }                 = require('./src/upload/uploadImgBB');
+const { uploadPublicImage, stripSignature }                 = require('./src/upload/uploadImage');
 const { createCarouselItem,
         createCarouselContainer }       = require('./src/instagram/createMedia');
 const { publishMedia }                  = require('./src/instagram/publishMedia');
@@ -83,16 +83,16 @@ async function main() {
   console.log(`Slides: ${imagePaths.join(', ')}`);
   console.log(`${SEP}\n`);
 
-  // ── 5. Upload slides to ImgBB ─────────────────────────────────────────────
+  // ── 5. Upload slides to image host ─────────────────────────────────────────────
   const imageUrls = [];
   for (const imagePath of imagePaths) {
-    imageUrls.push(await uploadToImgBB(imagePath));
+    imageUrls.push(await uploadPublicImage(imagePath));
   }
 
   // ── TEST MODE: stop before Instagram ─────────────────────────────────────
   if (TEST_MODE) {
-    logger.success('TEST PASSED — all steps up to ImgBB upload succeeded.');
-    console.log(`\nPublic image URLs:\n${imageUrls.join('\n')}`);
+    logger.success('TEST PASSED — all steps up to image upload succeeded.');
+    console.log(`\nPublic image URLs (S3 links expire after S3_URL_EXPIRES):\n${imageUrls.join('\n')}`);
     logger.info('Run  node indiarank.js  to enable full Instagram publishing.');
     process.exit(0);
   }
@@ -118,7 +118,7 @@ async function main() {
     source:            content.source,
     year:              content.year,
     published_post_id: postId,
-    image_urls:        imageUrls,
+    image_urls:        imageUrls.map(stripSignature),
     timestamp:         new Date().toISOString(),
     status:            'published',
   });

@@ -1,0 +1,11 @@
+{
+  "Rules": [
+    {
+      "ID": "delete-factwala-slides-after-30-days",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "factwala/" },
+      "Expiration": { "Days": 30 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 1 }
+    }
+  ]
+}

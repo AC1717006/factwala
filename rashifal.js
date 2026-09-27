@@ -11,7 +11,7 @@ const path = require('path');
 
 const { generateRashifal }            = require('./src/ai/rewriteRashifal');
 const { generateRashifalCarouselImages } = require('./src/image/generateRashifalCarousel');
-const { uploadToImgBB }               = require('./src/upload/uploadImgBB');
+const { uploadPublicImage, stripSignature }               = require('./src/upload/uploadImage');
 const { createCarouselItem,
         createCarouselContainer }      = require('./src/instagram/createMedia');
 const { publishMedia }                = require('./src/instagram/publishMedia');
@@ -72,16 +72,16 @@ async function main() {
   console.log(`Slides: ${imagePaths.join(', ')}`);
   console.log(`${SEP}\n`);
 
-  // ── 5. Upload slides to ImgBB (Instagram needs public URLs) ──────────────
+  // ── 5. Upload slides to image host — ImgBB or S3 (Instagram needs public URLs) ──────────────
   const imageUrls = [];
   for (const imagePath of imagePaths) {
-    imageUrls.push(await uploadToImgBB(imagePath));
+    imageUrls.push(await uploadPublicImage(imagePath));
   }
 
   // ── TEST MODE: stop here (before Instagram) ──────────────────────────────
   if (TEST_MODE) {
-    logger.success('TEST PASSED — all steps up to ImgBB upload succeeded.');
-    console.log(`\nPublic image URLs:\n${imageUrls.join('\n')}`);
+    logger.success('TEST PASSED — all steps up to image upload succeeded.');
+    console.log(`\nPublic image URLs (S3 links expire after S3_URL_EXPIRES):\n${imageUrls.join('\n')}`);
     logger.info('Run  node rashifal.js  to enable full Instagram publishing.');
     process.exit(0);
   }
@@ -103,7 +103,7 @@ async function main() {
   saveToDB({
     date:              date,
     published_post_id: postId,
-    image_urls:        imageUrls,
+    image_urls:        imageUrls.map(stripSignature),
     timestamp:         new Date().toISOString(),
     status:            'published',
   });
