@@ -1,9 +1,8 @@
 name: FactWala — Daily IndiaRank Post
 
 on:
-  schedule:
-    - cron: '30 6 * * *'    # 12:00 PM IST (UTC+5:30 = UTC 06:30)
-
+  # Scheduled runs moved to EC2 (see README → "Running on EC2").
+  # Manual dispatch kept for emergency/test runs only.
   workflow_dispatch:
     inputs:
       mode:

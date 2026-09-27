@@ -21,7 +21,8 @@ const logger                          = require('./src/utils/logger');
 const TEST_MODE = process.argv.includes('--test');
 const SEP = '─'.repeat(65);
 
-const DB_PATH = path.join(__dirname, 'src/storage/postedRashifal.json');
+const { dbPath } = require('./src/utils/paths');
+const DB_PATH = dbPath('postedRashifal.json');
 
 function loadDB() {
   if (!fs.existsSync(DB_PATH)) return { posted: [] };

@@ -1,7 +1,7 @@
 {
   "name": "instagram-news-bot",
   "version": "2.0.0",
-  "description": "FactWala — Automated Instagram Hindi News Bot (GNews + Groq AI + Canvas + Instagram Graph API)",
+  "description": "FactWala — Automated Instagram Hindi News Bot (GNews + Claude AI + Gemini/Canvas slides + Instagram Graph API)",
   "main": "index.js",
   "scripts": {
     "start":    "node index.js",
@@ -11,7 +11,8 @@
     "indiarank":       "node indiarank.js",
     "indiarank:test":  "node indiarank.js --test",
     "validate": "node scripts/validate.js",
-    "testpost": "node scripts/testPost.js"
+    "testpost": "node scripts/testPost.js",
+    "gemini:test":     "node scripts/testGemini.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

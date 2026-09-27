@@ -104,6 +104,54 @@ node scripts/testPost.js
 
 Both workflows support manual dispatch with `production` or `test` mode from the **Actions** tab.
 
+> **Scheduled runs now happen on EC2** (see below). The GitHub Actions workflows
+> no longer have a cron schedule — they are kept only for manual runs. Do not
+> run them in `production` mode while EC2 is live, or the same news can be
+> posted twice (EC2 keeps its own "already posted" database).
+
+---
+
+## Gemini Slides (News bot)
+
+Set `IMAGE_ENGINE=gemini` to have Gemini (`GEMINI_IMAGE_MODEL`, default
+`gemini-3.1-flash-image`) design all 3 news slides, including the Hindi text.
+
+- Claude writes the slide text exactly as before (`src/ai/rewriteNews.js`).
+- Gemini draws each slide from that text (`src/image/generateGeminiCarousel.js`).
+- **Hindi text check:** Claude reads every generated slide and compares it with the
+  expected text. A slide with wrong/garbled Hindi is regenerated
+  (`GEMINI_MAX_ATTEMPTS`, default 2).
+- **Fallback:** if Gemini fails or the text is still wrong, the bot uses the normal
+  Canvas slides so the post still goes out (`GEMINI_STRICT=true` to fail instead).
+- The prompt forbids realistic faces of real people and adds a small
+  "AI-generated visual" corner tag (`GEMINI_AI_LABEL=false` to turn off).
+- Rashifal and IndiaRank bots still use Canvas slides.
+
+Try it without posting anything:
+
+```bash
+npm run gemini:test      # 3 sample slides → output/gemini_slide_*.jpg
+```
+
+---
+
+## Running on EC2
+
+```
+cron (bot user) → scripts/run-job.sh <job> → node <entry>.js
+                  flock (no overlap) · logs/<job>.log · cleans output/ > 3 days
+```
+
+1. Node 22 + npm, repo checked out at e.g. `/opt/factwala/app`, `npm ci --omit=dev`.
+2. `.env` in the app folder (`chmod 600`, never committed) with all keys, plus
+   `IMAGE_ENGINE=gemini`, `GEMINI_API_KEY=…` and `DATA_DIR=/opt/factwala/data`.
+3. Copy the existing `src/storage/*.json` into `DATA_DIR` once, so old posts are not repeated.
+4. Test: `scripts/run-job.sh news --test` (stops before Instagram), then
+   `node scripts/validate.js` (checks the Meta token, no posting).
+5. Install the schedule: `crontab deploy/factwala.crontab` (check the server
+   time zone first — see the comments in that file).
+6. Logs: `logs/news.log`, `logs/rashifal.log`, `logs/indiarank.log`, `logs/activity.log`.
+
 ---
 
 ## Required API Keys
@@ -119,6 +167,7 @@ Both workflows support manual dispatch with `production` or `test` mode from the
 | `META_APP_ID` | — | [developers.facebook.com](https://developers.facebook.com) |
 | `META_APP_SECRET` | — | Meta Developer Portal |
 | `GROQ_API_KEY` | Yes (legacy, unused) | [console.groq.com](https://console.groq.com) |
+| `GEMINI_API_KEY` | Paid / limited free | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 
 > `CLAUDE_MODEL` (optional) overrides the default `claude-sonnet-4-6` model.
 

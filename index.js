@@ -9,6 +9,7 @@ if (process.env.DISABLE_SSL_VERIFY === 'true') {
 const { fetchLatestNews, saveToDB }   = require('./src/news/fetchNews');
 const { rewriteNews }                 = require('./src/ai/rewriteNews');
 const { generateCarouselImages }      = require('./src/image/generateCarousel');
+const { generateGeminiCarouselImages } = require('./src/image/generateGeminiCarousel');
 const { uploadToImgBB }               = require('./src/upload/uploadImgBB');
 const { createCarouselItem,
         createCarouselContainer }      = require('./src/instagram/createMedia');
@@ -17,6 +18,7 @@ const { sleep }                       = require('./src/utils/retry');
 const logger                          = require('./src/utils/logger');
 
 const TEST_MODE = process.argv.includes('--test');
+const IMAGE_ENGINE = (process.env.IMAGE_ENGINE || 'canvas').toLowerCase();
 const SEP = '─'.repeat(65);
 
 async function main() {
@@ -35,8 +37,22 @@ async function main() {
   // ── 2. Rewrite with Claude AI (3-slide carousel) ─────────────────────────
   const rewritten = await rewriteNews(article);
 
-  // ── 3. Generate FactWala branded carousel slides (1080x1080 x3) ─────────
-  const imagePaths = await generateCarouselImages(rewritten);
+  // ── 3. Generate FactWala carousel slides (1080x1080 x3) ──────────────────
+  // IMAGE_ENGINE=gemini → Gemini designs the slides; if Gemini fails or the
+  // Hindi text check keeps failing, fall back to the Canvas slides so the
+  // post still goes out. IMAGE_ENGINE=canvas (default) → Canvas only.
+  let imagePaths;
+  if (IMAGE_ENGINE === 'gemini') {
+    try {
+      imagePaths = await generateGeminiCarouselImages(rewritten);
+    } catch (err) {
+      if (process.env.GEMINI_STRICT === 'true') throw err;
+      logger.warn('Gemini slides failed — falling back to Canvas slides', { error: err.message });
+      imagePaths = await generateCarouselImages(rewritten);
+    }
+  } else {
+    imagePaths = await generateCarouselImages(rewritten);
+  }
 
   // ── 4. Preview ───────────────────────────────────────────────────────────
   console.log(`\n${SEP}`);

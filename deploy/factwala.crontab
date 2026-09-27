@@ -1,0 +1,16 @@
+# FactWala — crontab for the EC2 bot user (install with: crontab deploy/factwala.crontab)
+#
+# IMPORTANT: times below are in UTC. Check the server clock first:
+#   timedatectl | grep "Time zone"
+# If the server is on Asia/Kolkata instead of UTC, use the IST column instead.
+#
+# APP = folder where the repo is checked out on EC2 (edit if different).
+APP=/opt/factwala/app
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+#  UTC        job          IST
+30 0  * * *   $APP/scripts/run-job.sh rashifal     # 06:00 IST
+30 2  * * *   $APP/scripts/run-job.sh news         # 08:00 IST
+30 6  * * *   $APP/scripts/run-job.sh indiarank    # 12:00 IST
+30 14 * * *   $APP/scripts/run-job.sh news         # 20:00 IST

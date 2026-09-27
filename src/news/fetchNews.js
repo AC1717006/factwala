@@ -4,8 +4,9 @@ const fs     = require('fs');
 const path   = require('path');
 const logger = require('../utils/logger');
 const { retry } = require('../utils/retry');
+const { dbPath } = require('../utils/paths');
 
-const DB_PATH    = path.join(__dirname, '../storage/postedNews.json');
+const DB_PATH    = dbPath('postedNews.json');
 const GNEWS_URL  = 'https://gnews.io/api/v4/top-headlines';
 
 // ── Database helpers ──────────────────────────────────────────────────────────
@@ -24,6 +25,7 @@ function saveToDB(entry) {
   const db = loadDB();
   db.posted.push(entry);
   if (db.posted.length > 500) db.posted = db.posted.slice(-500);
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
   logger.info('Saved to database', { title: entry.title });
 }
